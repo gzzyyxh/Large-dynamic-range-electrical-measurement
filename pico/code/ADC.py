@@ -118,7 +118,7 @@ reglist = {
 
 OP = {'w': 0x00, 'r': 0x40}
 
-MISO = Pin(0, Pin.OUT)
+MISO = Pin(0, Pin.IN)
 CSn = Pin(1, Pin.OUT)
 SCLK = Pin(2, Pin.OUT)
 MOSI = Pin(3, Pin.OUT)
@@ -171,32 +171,38 @@ def Access(op, reg, value = 0x00, bytes = 3):
         spi.write(buf)
         CSn.value(1)
 
-def VIN(data, gain, offset, vref = 2.5):
-    return ((int(data) / 2 * 0x400000 / int(gain0)) + (int(offset0) - 0x800000)) / pow(2, 23) * 2.5 / 0.75 * 4.3
+def VIN_24(data, gain, offset, vref = 2.5):
+    return ((int(data) / 2 * 0x400000 / int(gain)) + (int(offset) - 0x800000)) / pow(2, 23) * vref / 0.75 * 4.3
+
+def VIN_32(data, gain, offset, vref = 2.5):
+    return ((int(data) / 2 * 0x400000 / int(gain)) + (int(offset) - 0x800000)) / pow(2, 31) * vref / 0.75 * 4.3
 
 def calu(self):
     global RX_MEASURE, Time_list, Data_list, i, Counter
     # print(i)
     i = i + 1
-    if len(Time_list) == 100:
+    print(i)
+    if len(Time_list) == 500:
         tm.deinit()
         # print(Time_list)
         # print(Data_list)
         for line in Time_list:
+            utime.sleep(0.002)
             # print("transmit",Time_list.index(line))
             uart1.write((str(Time_list.index(line)) + '\t' + str(Data_list[Time_list.index(line)]) + '\n').encode("gbk"))
         Time_list.clear()
         Data_list.clear()
         # RX_MEASURE = False
         i = 0
-    data = Access('r', 'DATA', bytes = 3)
-    vin = VIN(data, gain0, offset0)
+        # uart1.write("*".encode("gbk"))
+    data = Access('r', 'DATA', bytes = 4)
+    # vin = VIN_32(data, gain0, offset0)
     # print("VIN:", vin)
     # print("Time_us is: ", utime.ticks_us())
     # print("Time_ms is: ", utime.ticks_ms())
     # print("Time_s is: ", utime.time())
     Time_list.append(utime.ticks_ms())
-    Data_list.append(vin)
+    Data_list.append(offset0 + '\t' + gain0 + '\t' + data)
 
 RX_MEASURE = False
 Time_list = []
@@ -205,47 +211,115 @@ i = 0
 Counter = 0
 tm = Timer(-1)
 def measure(freq):
-    while True:
-        global RX_MEASURE, Time_list, Data_list, i, Counter
-        Counter = Counter + 1
-        print("Counter: ", Counter)
-        if RX_MEASURE == True:
-            tm.init(freq = 100, mode = Timer.PERIODIC, callback = calu)
-            utime.sleep(5)
+    # while True:
+    global RX_MEASURE, Time_list, Data_list, i, Counter
+    Counter = Counter + 1
+    # print("Counter: ", Counter)
+    if RX_MEASURE == True:
+        tm.init(freq = freq, mode = Timer.PERIODIC, callback = calu)
+        utime.sleep(5)
 
 # if __name__ == "__main__":
 freq = 100
 uart1 = UART(1, baudrate = 115200, bits=8, parity = None, stop = 1, tx = Pin(8), rx = Pin(9))
 # measure_thread = _thread.start_new_thread(measure, (freq, ))
 
-while True:
+# while True:
     # print("Master.rx_measure = ", RX_MEASURE)
     # utime.sleep(1)
     # while uart1.any() > 0:
     #     data = uart1.readline()
 
         # if data == b'*':
-    RX_MEASURE = True
-    # print(data)
-    print("data: ", Access('r', 'DATA', bytes = 3))
-    Reset()
-    print("data: ", Access('r', 'DATA', bytes = 3))
-    print("start.")
-    Access('r','ID', bytes = 2)
+RX_MEASURE = True
+# print(data)
 
-    Access('w', 'SETUPCON0', value = 0x2003)
-    Access('r', 'SETUPCON0', bytes = 2)
+Reset()
 
-    Access('r', 'IFMODE', bytes = 2)
+print("start.")
+print("ID: ", Access('r','ID', bytes = 2))
 
-    offset0 = Access('r', "OFFSET0", bytes = 3)
 
-    Access('w', 'GAIN0', value = 0x555555)
-    gain0 = Access('r', 'GAIN0', bytes = 3)
+Access('w', 'SETUPCON0', value = 0x2003)
+print("SETUPCON0: ", Access('r', 'SETUPCON0', bytes = 2))
 
-    measure(100)
+offset0 = Access('r', "OFFSET0", bytes = 3)
+print("OFFSET0: ", offset0)
 
-    # file = open ("Hello.txt", "w")
+Access('w', 'GAIN0', value = 0x555555)
+gain0 = Access('r', 'GAIN0', bytes = 3)
+print("GAIN0: ", gain0)
 
-    print("over.")
-    utime.sleep(5)
+# Access('w', 'IFMODE', value = 0x0000)
+# Access('r', 'IFMODE', bytes = 2)
+
+# data = Access('r', 'DATA', bytes = 3)
+# vin_24 = VIN_24(data, gain0, offset0)
+# print("VIN_24: ", vin_24)
+
+Access('w', 'ADCMODE', value = 0x00a0)
+print("ADCMODE: ", Access('r', 'ADCMODE', bytes = 2))
+
+Access('w', 'IFMODE', value = 0x0200)
+# Access('w', 'IFMODE', value = 0x0201)
+print("IFMODE: ", Access('r', 'IFMODE', bytes = 2))
+
+# Access('w', 'FILTCON0', value = 0x0e05)    # 100SPS
+Access('w', 'FILTCON0', value = 0x0705)    # 10000SPS
+print("FILTCON0: ", Access('r', 'FILTCON0', bytes = 2))
+
+# data = Access('r', 'DATA', bytes = 4)
+# vin_32 = VIN_32(data, gain0, offset0)
+# print("VIN_32: ", vin_32)
+# print(offset0 + gain0 + data)
+
+# measure(100)
+
+# Access('w', 'IFMODE', value = 0x0201)
+# print("IFMODE: ", Access('r', 'IFMODE', bytes = 2))
+
+CSn.value(0)
+
+buf_1 = bytearray()
+buf_2 = bytearray()
+buf_3 = bytearray()
+buf_1.append(0x02)
+print(buf_1)
+spi.write(buf_1)
+buf_2.append(0x00)
+spi.write(buf_2)
+buf_3.append(0x80)
+spi.write(buf_3)
+
+print(MISO.value())
+
+for i in range(0, 500):
+    while True:
+        if not MISO.value():
+            break
+    # v = hex(int.from_bytes(spi.read(4), 'big'))
+    v = Access('r', 'DATA', bytes = 4)
+    # utime.sleep(0.005)
+    # v= Access('r', 'DATA', bytes = 4)
+    # print(v)
+    # print("v: ", VIN_32(v, gain0, offset0))
+    Time_list.append(utime.ticks_ms())
+    Data_list.append(offset0 + '\t' + gain0 + '\t' + v)
+    utime.sleep(0.01)
+
+utime.sleep(1)
+buf_4 = bytearray()
+buf_4.append(0x44)
+spi.write(buf_4)
+
+CSn.value(1)
+
+print(Time_list)
+print(Data_list)
+for line in Time_list:
+    utime.sleep(0.002)
+    uart1.write((str(Time_list.index(line)) + '\t' + str(Data_list[Time_list.index(line)]) + '\n').encode("gbk"))
+Time_list.clear()
+Data_list.clear()
+
+print("over.")
