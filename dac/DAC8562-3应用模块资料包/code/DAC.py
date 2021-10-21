@@ -10,7 +10,7 @@ Reset_All_Regs = 0x280001
 POWERUP_DAC_A_B = 0x200003
 ENABLE_INTERNAL = 0x380001
 
-
+Square = {"VH": 0, "VL": 0, "TD": 0, "TR": 0, "TF": 0, "PW": 0, "PER": 0}
 
 MISO = Pin(0, Pin.IN)
 SYNC = CSn = Pin(1, Pin.OUT)
